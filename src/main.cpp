@@ -39,7 +39,7 @@ void setup() {
   }
   if (WiFi.waitForConnectResult() == WL_CONNECTED) {
     is_connected = true;
-    M5.Lcd.println("Wi-Fi Connected");
+    // M5.Lcd.println("Wi-Fi Connected");
     configTime(9 * 3600L, 0, "ntp.nict.jp", "time.google.com", "ntp.jst.mfeed.ad.jp");  //NTPの設定
     getLocalTime(&timeInfo);  //tmオブジェクトのtimeInfoに現在時刻を入れ込む
   }
