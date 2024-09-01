@@ -2,7 +2,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include "wifi_setting.h"
+#include "env.h"
 // #include <HTTPClient.h>
 
 #define PIN 21        //INが接続されているピンを指定
@@ -58,13 +58,13 @@ void loop() {
       pixels.show();  //LEDに色を反映
       M5.update();
       if (M5.BtnA.isPressed()) {
-        M5.Lcd.drawJpgFile(SD, "/240x320/dojo/dojo01.jpg", 0, 0);
+        M5.Lcd.drawJpgFile(SD, "/240x320/g/asuka01.jpg", 0, 0);
       }
       if (M5.BtnB.isPressed()) {
-        M5.Lcd.drawJpgFile(SD, "/240x320/dojo/dojo02.jpg", 0, 0);
+        M5.Lcd.drawJpgFile(SD, "/240x320/g/fumika02.jpg", 0, 0);
       }
       if (M5.BtnC.isPressed()) {
-        M5.Lcd.drawJpgFile(SD, "/240x320/dojo/dojo03.jpg", 0, 0);
+        M5.Lcd.drawJpgFile(SD, "/240x320/g/hina01.jpg", 0, 0);
       }
     }
   }
