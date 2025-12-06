@@ -5,6 +5,7 @@
  * - ボタンB (中): 明るさダウン
  * - ボタンA (下): モード切り替え
  * * 画面設定: Rotation 2 (縦画面、ガイド右側)
+ * * 更新: Snow Sparkleをふわっとした動作に変更
  */
 
 #include <M5Stack.h>
@@ -24,7 +25,7 @@ Adafruit_NeoPixel pixels(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 // モード定義
 enum Mode {
   MODE_MERRY_XMAS = 0, // 赤と緑の交互移動
-  MODE_SNOW_SPARKLE,   // 白ベースにキラキラ
+  MODE_SNOW_SPARKLE,   // 白ベースにキラキラ（ふわっとVer）
   MODE_CANDLE,         // 暖色のゆらぎ
   MODE_OFF,            // 消灯
   MODE_COUNT           // モード数カウント用
@@ -34,12 +35,19 @@ int currentMode = MODE_MERRY_XMAS;
 int currentBrightness = DEFAULT_BRIGHT;
 unsigned long lastUpdate = 0;
 
+// Snow Sparkle用の状態管理配列
+// sparkleLevel: 現在の追加輝度 (0.0 - 255.0)
+// sparkleStep: 変化量 (+なら明るくなる、-なら暗くなる、0なら待機)
+float sparkleLevel[NUM_LEDS];
+float sparkleStep[NUM_LEDS];
+
 // 関数プロトタイプ宣言
 void drawScreen();
 void effectMerryXmas();
 void effectSnowSparkle();
 void effectCandle();
 void clearLeds();
+void resetSparkleVars();
 
 void setup() {
   // LCD, SD, Serialは有効、I2Cは無効(false)にして干渉を避ける
@@ -59,6 +67,9 @@ void setup() {
   pixels.setBrightness(currentBrightness);
   pixels.clear();
   pixels.show(); // 初期化時は消灯
+  
+  // 変数初期化
+  resetSparkleVars();
 
   drawScreen();
 }
@@ -92,8 +103,11 @@ void loop() {
       currentMode = 0;
     }
     drawScreen();
-    // モード切り替え時に一度リセットしたい場合はここで処理
-    if (currentMode == MODE_OFF) clearLeds();
+    // モード切り替え時に一度リセット・変数のクリア
+    clearLeds();
+    if (currentMode == MODE_SNOW_SPARKLE) {
+      resetSparkleVars();
+    }
   }
 
   // --- エフェクト処理 ---
@@ -116,6 +130,13 @@ void loop() {
 // --------------------------------------------------
 // エフェクトロジック
 // --------------------------------------------------
+
+void resetSparkleVars() {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    sparkleLevel[i] = 0;
+    sparkleStep[i] = 0;
+  }
+}
 
 // モード1: 赤と緑が流れる（キャンディケイン風）
 void effectMerryXmas() {
@@ -140,24 +161,54 @@ void effectMerryXmas() {
   if (offset >= 3) offset = 0;
 }
 
-// モード2: 雪のきらめき（ベースは暗い白、ランダムに強く光る）
+// モード2: 雪のきらめき（ふわっとVer）
 void effectSnowSparkle() {
-  // 更新速度調整
-  if (millis() - lastUpdate < 50) return; // 速めに更新
+  // 更新速度: アニメーションを滑らかにするため20msごとに更新
+  if (millis() - lastUpdate < 20) return; 
   lastUpdate = millis();
 
-  // ベースカラー（冷たい白）
-  for(int i=0; i<NUM_LEDS; i++) {
-    pixels.setPixelColor(i, pixels.Color(10, 10, 20)); 
+  // 1. ランダムに新しいきらめきを発生させる抽選
+  // 確率: 1/100 (1%) くらいで発生。
+  // ゆっくり見せたい場合はこの確率を下げたり、stepの値を小さくします。
+  if (random(100) < 2) { 
+    int i = random(NUM_LEDS);
+    // 今光っていないLEDならフェードイン開始
+    if (sparkleStep[i] == 0) { 
+      sparkleStep[i] = 3.0; // 明るくなる速度 (小さいほどゆっくり)
+    }
   }
 
-  // ランダムにピクセルを選んで白く光らせる
-  int pixel = random(NUM_LEDS);
-  pixels.setPixelColor(pixel, pixels.Color(255, 255, 255));
+  // 2. 全ピクセルの更新と描画
+  for (int i = 0; i < NUM_LEDS; i++) {
+    // 背景色（冷たい白・青白）
+    int baseR = 10;
+    int baseG = 10;
+    int baseB = 20;
+
+    // きらめきアニメーションの計算
+    if (sparkleStep[i] != 0) {
+      sparkleLevel[i] += sparkleStep[i];
+
+      // 輝度がピーク(255)に達したら -> フェードアウトへ反転
+      if (sparkleLevel[i] >= 255.0) {
+        sparkleLevel[i] = 255.0;
+        sparkleStep[i] = -3.0; // 暗くなる速度 (符号をマイナスに)
+      }
+      // 輝度が0に戻ったら -> 終了
+      else if (sparkleLevel[i] <= 0.0) {
+        sparkleLevel[i] = 0.0;
+        sparkleStep[i] = 0;
+      }
+    }
+
+    // 背景色 + きらめき成分 を合成
+    int r = constrain(baseR + (int)sparkleLevel[i], 0, 255);
+    int g = constrain(baseG + (int)sparkleLevel[i], 0, 255);
+    int b = constrain(baseB + (int)sparkleLevel[i], 0, 255);
+
+    pixels.setPixelColor(i, pixels.Color(r, g, b));
+  }
   pixels.show();
-  
-  // 少しだけ待つ（Sparkle感）
-  delay(30); 
 }
 
 // モード3: キャンドル（暖色のゆらぎ）
