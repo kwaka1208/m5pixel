@@ -5,7 +5,7 @@
  * - ボタンB (中): 明るさダウン
  * - ボタンA (下): モード切り替え
  * * 画面設定: Rotation 2 (縦画面、ガイド右側)
- * * 更新: Snow Sparkleをふわっとした動作に変更
+ * * 更新: 明るさバーを縦方向に変更（画面左端）
  */
 
 #include <M5Stack.h>
@@ -24,11 +24,13 @@ Adafruit_NeoPixel pixels(NUM_LEDS, PIN, NEO_GRB + NEO_KHZ800);
 
 // モード定義
 enum Mode {
-  MODE_MERRY_XMAS = 0, // 赤と緑の交互移動
-  MODE_SNOW_SPARKLE,   // 白ベースにキラキラ（ふわっとVer）
-  MODE_CANDLE,         // 暖色のゆらぎ
-  MODE_OFF,            // 消灯
-  MODE_COUNT           // モード数カウント用
+  MODE_MERRY_XMAS = 0,      // 赤と緑
+  MODE_MERRY_XMAS_BLUE,     // 赤と緑と青
+  MODE_MERRY_XMAS_MULTI,    // カラフル
+  MODE_SNOW_SPARKLE,        // 白ベースにキラキラ（ふわっとVer）
+  MODE_CANDLE,              // 暖色のゆらぎ
+  MODE_OFF,                 // 消灯
+  MODE_COUNT                // モード数カウント用
 };
 
 int currentMode = MODE_MERRY_XMAS;
@@ -36,14 +38,14 @@ int currentBrightness = DEFAULT_BRIGHT;
 unsigned long lastUpdate = 0;
 
 // Snow Sparkle用の状態管理配列
-// sparkleLevel: 現在の追加輝度 (0.0 - 255.0)
-// sparkleStep: 変化量 (+なら明るくなる、-なら暗くなる、0なら待機)
 float sparkleLevel[NUM_LEDS];
 float sparkleStep[NUM_LEDS];
 
 // 関数プロトタイプ宣言
 void drawScreen();
 void effectMerryXmas();
+void effectMerryXmasBlue();
+void effectMerryXmasMulti();
 void effectSnowSparkle();
 void effectCandle();
 void clearLeds();
@@ -115,6 +117,12 @@ void loop() {
     case MODE_MERRY_XMAS:
       effectMerryXmas();
       break;
+    case MODE_MERRY_XMAS_BLUE:
+      effectMerryXmasBlue();
+      break;
+    case MODE_MERRY_XMAS_MULTI:
+      effectMerryXmasMulti();
+      break;
     case MODE_SNOW_SPARKLE:
       effectSnowSparkle();
       break;
@@ -138,70 +146,100 @@ void resetSparkleVars() {
   }
 }
 
-// モード1: 赤と緑が流れる（キャンディケイン風）
+// モード1: 赤と緑が流れる
 void effectMerryXmas() {
   static int offset = 0;
-  // 更新速度調整
   if (millis() - lastUpdate < 200) return;
   lastUpdate = millis();
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    // オフセットを使って動きをつける
     if ((i + offset) % 3 == 0) {
       pixels.setPixelColor(i, pixels.Color(255, 0, 0)); // 赤
     } else if ((i + offset) % 3 == 1) {
       pixels.setPixelColor(i, pixels.Color(0, 255, 0)); // 緑
     } else {
-      pixels.setPixelColor(i, pixels.Color(200, 200, 200)); // 白（少し控えめ）
+      pixels.setPixelColor(i, pixels.Color(200, 200, 200)); // 白
     }
   }
   pixels.show();
-  
   offset++;
   if (offset >= 3) offset = 0;
 }
 
-// モード2: 雪のきらめき（ふわっとVer）
+// モード2: 赤と緑と青が流れる
+void effectMerryXmasBlue() {
+  static int offset = 0;
+  if (millis() - lastUpdate < 200) return;
+  lastUpdate = millis();
+
+  for (int i = 0; i < NUM_LEDS; i++) {
+    // 3色のローテーション (赤 -> 緑 -> 青)
+    if ((i + offset) % 3 == 0) {
+      pixels.setPixelColor(i, pixels.Color(255, 0, 0)); // 赤
+    } else if ((i + offset) % 3 == 1) {
+      pixels.setPixelColor(i, pixels.Color(0, 255, 0)); // 緑
+    } else {
+      pixels.setPixelColor(i, pixels.Color(0, 0, 255)); // 青
+    }
+  }
+  pixels.show();
+  offset++;
+  if (offset >= 3) offset = 0;
+}
+
+// モード3: マルチカラー (赤,緑,青,黄,紫,橙)
+void effectMerryXmasMulti() {
+  static int offset = 0;
+  if (millis() - lastUpdate < 200) return;
+  lastUpdate = millis();
+
+  // 6色のパレット
+  uint32_t colors[6] = {
+    pixels.Color(255, 0, 0),   // 赤
+    pixels.Color(255, 165, 0), // オレンジ
+    pixels.Color(255, 255, 0), // 黄
+    pixels.Color(0, 255, 0),   // 緑
+    pixels.Color(0, 0, 255),   // 青
+    pixels.Color(128, 0, 128)  // 紫
+  };
+
+  for (int i = 0; i < NUM_LEDS; i++) {
+    int colorIndex = (i + offset) % 6;
+    pixels.setPixelColor(i, colors[colorIndex]);
+  }
+  pixels.show();
+  offset++;
+  if (offset >= 6) offset = 0;
+}
+
+// モード4: 雪のきらめき（ふわっとVer）
 void effectSnowSparkle() {
-  // 更新速度: アニメーションを滑らかにするため20msごとに更新
   if (millis() - lastUpdate < 20) return; 
   lastUpdate = millis();
 
-  // 1. ランダムに新しいきらめきを発生させる抽選
-  // 確率: 1/100 (1%) くらいで発生。
-  // ゆっくり見せたい場合はこの確率を下げたり、stepの値を小さくします。
   if (random(100) < 2) { 
     int i = random(NUM_LEDS);
-    // 今光っていないLEDならフェードイン開始
     if (sparkleStep[i] == 0) { 
-      sparkleStep[i] = 3.0; // 明るくなる速度 (小さいほどゆっくり)
+      sparkleStep[i] = 3.0; 
     }
   }
 
-  // 2. 全ピクセルの更新と描画
   for (int i = 0; i < NUM_LEDS; i++) {
-    // 背景色（冷たい白・青白）
     int baseR = 10;
     int baseG = 10;
     int baseB = 20;
 
-    // きらめきアニメーションの計算
     if (sparkleStep[i] != 0) {
       sparkleLevel[i] += sparkleStep[i];
-
-      // 輝度がピーク(255)に達したら -> フェードアウトへ反転
       if (sparkleLevel[i] >= 255.0) {
         sparkleLevel[i] = 255.0;
-        sparkleStep[i] = -3.0; // 暗くなる速度 (符号をマイナスに)
+        sparkleStep[i] = -3.0; 
       }
-      // 輝度が0に戻ったら -> 終了
       else if (sparkleLevel[i] <= 0.0) {
         sparkleLevel[i] = 0.0;
         sparkleStep[i] = 0;
       }
     }
-
-    // 背景色 + きらめき成分 を合成
     int r = constrain(baseR + (int)sparkleLevel[i], 0, 255);
     int g = constrain(baseG + (int)sparkleLevel[i], 0, 255);
     int b = constrain(baseB + (int)sparkleLevel[i], 0, 255);
@@ -211,15 +249,14 @@ void effectSnowSparkle() {
   pixels.show();
 }
 
-// モード3: キャンドル（暖色のゆらぎ）
+// モード5: キャンドル（暖色のゆらぎ）
 void effectCandle() {
   if (millis() - lastUpdate < 100) return;
   lastUpdate = millis();
 
   for(int i=0; i<NUM_LEDS; i++) {
-    // 赤～オレンジ～黄色の範囲でランダムに揺らぐ
     int r = random(200, 255);
-    int g = random(50, 120); // 緑成分で黄色みを調整
+    int g = random(50, 120); 
     int b = 0;
     pixels.setPixelColor(i, pixels.Color(r, g, b));
   }
@@ -242,33 +279,55 @@ void drawScreen() {
   
   // タイトル
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(10, 10);
+  M5.Lcd.setCursor(20, 10); // 左端にバーが入るので少し右へ
   M5.Lcd.println("Christmas");
-  M5.Lcd.setCursor(10, 35);
+  M5.Lcd.setCursor(20, 35);
   M5.Lcd.println("Lights");
   
   // 現在のモード表示
   M5.Lcd.setTextSize(3);
   int yMode = 90;
-  M5.Lcd.setCursor(10, yMode);
+  int xMode = 20; // 左マージン確保
+  M5.Lcd.setCursor(xMode, yMode);
   
   switch (currentMode) {
     case MODE_MERRY_XMAS:
       M5.Lcd.setTextColor(RED);
       M5.Lcd.println("Merry");
-      M5.Lcd.setCursor(10, yMode + 30);
+      M5.Lcd.setCursor(xMode, yMode + 30);
       M5.Lcd.println("Xmas");
+      M5.Lcd.setTextSize(2);
+      M5.Lcd.setCursor(xMode, yMode + 60);
+      M5.Lcd.println("(Red & Green)");
+      break;
+    case MODE_MERRY_XMAS_BLUE:
+      M5.Lcd.setTextColor(BLUE);
+      M5.Lcd.println("Merry");
+      M5.Lcd.setCursor(xMode, yMode + 30);
+      M5.Lcd.println("Xmas");
+      M5.Lcd.setTextSize(2);
+      M5.Lcd.setCursor(xMode, yMode + 60);
+      M5.Lcd.println("(+ Blue)");
+      break;
+    case MODE_MERRY_XMAS_MULTI:
+      M5.Lcd.setTextColor(MAGENTA);
+      M5.Lcd.println("Merry");
+      M5.Lcd.setCursor(xMode, yMode + 30);
+      M5.Lcd.println("Multi");
+      M5.Lcd.setTextSize(2);
+      M5.Lcd.setCursor(xMode, yMode + 60);
+      M5.Lcd.println("(Colorful)");
       break;
     case MODE_SNOW_SPARKLE:
       M5.Lcd.setTextColor(CYAN);
       M5.Lcd.println("Snow");
-      M5.Lcd.setCursor(10, yMode + 30);
+      M5.Lcd.setCursor(xMode, yMode + 30);
       M5.Lcd.println("Sparkle");
       break;
     case MODE_CANDLE:
       M5.Lcd.setTextColor(ORANGE);
       M5.Lcd.println("Candle");
-      M5.Lcd.setCursor(10, yMode + 30);
+      M5.Lcd.setCursor(xMode, yMode + 30);
       M5.Lcd.println("Light");
       break;
     case MODE_OFF:
@@ -278,9 +337,6 @@ void drawScreen() {
   }
 
   // 操作ガイド
-  // 画面上の位置（上・中・下）に合わせてテキストを表示
-  // 機能割り当ては loop() で変更済み
-  
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(WHITE);
   
@@ -292,14 +348,23 @@ void drawScreen() {
   M5.Lcd.print("Bright >");
   
   // 真ん中 (BtnB) -> Dark
-  M5.Lcd.setCursor(guideX + 24, 240); // 右揃え調整
+  M5.Lcd.setCursor(guideX + 24, 240); 
   M5.Lcd.print("Dark >");
 
   // 一番下 (BtnA) -> Mode
   M5.Lcd.setCursor(guideX + 24, 280);
   M5.Lcd.print("Mode >");
   
-  // 明るさバー (下端)
-  int barWidth = map(currentBrightness, 0, 255, 0, 240);
-  M5.Lcd.fillRect(0, 315, barWidth, 5, YELLOW);
+  // 明るさバー (縦方向・左端)
+  // 幅8px, 高さ最大320px
+  int barHeight = map(currentBrightness, 0, 255, 0, 320);
+  
+  // 枠線（目安）
+  M5.Lcd.drawRect(0, 0, 10, 320, DARKGREY);
+  
+  // 中身（下から上へ）
+  // 描画開始Y座標 = 320(下端) - 高さ
+  if (barHeight > 0) {
+    M5.Lcd.fillRect(1, 320 - barHeight, 8, barHeight, YELLOW);
+  }
 }
